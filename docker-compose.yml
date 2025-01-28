@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.9-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"      # RabbitMQ server
+      - "15672:15672"    # RabbitMQ Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - backend
+
+  user_service:
+    build:
+      context: .
+      dockerfile: user_service/Dockerfile
+    container_name: user_service
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=sqlite:///./user_service.db
+      - SECRET_KEY=MY_SECRET_KEY
+      - ALGORITHM=HS256
+    depends_on:
+      - rabbitmq
+    networks:
+      - backend
+    volumes:
+      - user_service_data:/app
+
+  notification_service:
+    build:
+      context: .
+      dockerfile: notification_service/Dockerfile
+    container_name: notification_service
+    ports:
+      - "8002:8002"
+    environment:
+      - DATABASE_URL=sqlite:///./notification_service.db
+      - RABBITMQ_HOST=rabbitmq
+      - QUEUE_NAME=recommendations_queue
+      - ORDER_UPDATES_QUEUE=order_updates_queue
+    depends_on:
+      - rabbitmq
+    networks:
+      - backend
+    volumes:
+      - notification_service_data:/app
+
+  recommendation_service:
+    build:
+      context: .
+      dockerfile: recommendation_service/Dockerfile
+    container_name: recommendation_service
+    ports:
+      - "8003:8003"
+    environment:
+      - DATABASE_URL=sqlite:///./recommendation_service.db
+      - RABBITMQ_HOST=rabbitmq
+      - QUEUE_NAME=recommendations_queue
+    depends_on:
+      - rabbitmq
+    networks:
+      - backend
+    volumes:
+      - recommendation_service_data:/app
+
+  order_service:
+    build:
+      context: .
+      dockerfile: order_service/Dockerfile
+    container_name: order_service
+    ports:
+      - "8004:8004"
+    environment:
+      - DATABASE_URL=sqlite:///./order_service.db
+      - RABBITMQ_HOST=rabbitmq
+      - QUEUE_NAME=order_updates_queue
+    depends_on:
+      - rabbitmq
+    networks:
+      - backend
+    volumes:
+      - order_service_data:/app
+
+  graphql_gateway:
+    build:
+      context: .
+      dockerfile: graphql_gateway/Dockerfile
+    container_name: graphql_gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - USER_SERVICE_URL=http://user_service:8001
+      - NOTIF_SERVICE_URL=http://notification_service:8002
+      - RECOMMEND_SERVICE_URL=http://recommendation_service:8003
+      - ORDER_SERVICE_URL=http://order_service:8004
+      - SECRET_KEY=MY_SECRET_KEY
+      - ALGORITHM=HS256
+    depends_on:
+      - user_service
+      - notification_service
+      - recommendation_service
+      - order_service
+      - rabbitmq
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  user_service_data:
+  notification_service_data:
+  recommendation_service_data:
+  order_service_data:
