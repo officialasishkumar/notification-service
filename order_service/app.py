@@ -1,5 +1,3 @@
-# order_service/app.py
-
 import pika
 import json
 from sqlalchemy.orm import Session
@@ -119,7 +117,7 @@ def scheduled_order_update():
         db.close()
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(scheduled_order_update, 'interval', seconds=10)  # Adjust interval as needed
+scheduler.add_job(scheduled_order_update, 'interval', seconds=30)
 scheduler.start()
 
 if __name__ == "__main__":
