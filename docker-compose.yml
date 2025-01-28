@@ -8,10 +8,16 @@ services:
       - "5672:5672"      # RabbitMQ server
       - "15672:15672"    # RabbitMQ Management UI
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: appuser      # New Username
+      RABBITMQ_DEFAULT_PASS: securepassword123  # New Password
     networks:
       - backend
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 
   user_service:
     build:
@@ -41,6 +47,8 @@ services:
     environment:
       - DATABASE_URL=sqlite:///./notification_service.db
       - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=appuser            # New Environment Variable
+      - RABBITMQ_PASS=securepassword123  # New Environment Variable
       - QUEUE_NAME=recommendations_queue
       - ORDER_UPDATES_QUEUE=order_updates_queue
     depends_on:
@@ -60,6 +68,8 @@ services:
     environment:
       - DATABASE_URL=sqlite:///./recommendation_service.db
       - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=appuser            # New Environment Variable
+      - RABBITMQ_PASS=securepassword123  # New Environment Variable
       - QUEUE_NAME=recommendations_queue
     depends_on:
       - rabbitmq
@@ -78,6 +88,8 @@ services:
     environment:
       - DATABASE_URL=sqlite:///./order_service.db
       - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=appuser            # New Environment Variable
+      - RABBITMQ_PASS=securepassword123  # New Environment Variable
       - QUEUE_NAME=order_updates_queue
     depends_on:
       - rabbitmq

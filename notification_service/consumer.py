@@ -4,8 +4,12 @@ from sqlalchemy.orm import Session
 from database import SessionLocal
 from models import Notification
 import os
+import time
+import logging
 
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
+RABBITMQ_USER = os.getenv("RABBITMQ_USER", "appuser")
+RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "securepassword123")
 RECOMMEND_QUEUE = "recommendations_queue"
 ORDER_UPDATES_QUEUE = "order_updates_queue"
 
@@ -37,31 +41,51 @@ def handle_order_status_update(data: dict, db: Session):
     db.refresh(notification)
     print(f"Created order update notification {notification.id} for user {user_id}")
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 def callback(ch, method, properties, body):
-    message = json.loads(body)
-    event = message.get("event")
-    data = message.get("data", {})
-    db: Session = SessionLocal()
-    if event == "NEW_RECOMMENDATION":
-        handle_new_recommendation(data, db)
-    elif event == "ORDER_STATUS_UPDATE":
-        handle_order_status_update(data, db)
-    else:
-        print(f"Unhandled event: {event}")
-    db.close()
-    ch.basic_ack(delivery_tag=method.delivery_tag)
+    try:
+        message = json.loads(body)
+        event = message.get("event")
+        data = message.get("data", {})
+        db: Session = SessionLocal()
+        if event == "NEW_RECOMMENDATION":
+            handle_new_recommendation(data, db)
+        elif event == "ORDER_STATUS_UPDATE":
+            handle_order_status_update(data, db)
+        else:
+            logger.warning(f"Unhandled event: {event}")
+        db.close()
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+    except Exception as e:
+        logger.error(f"Error processing message: {e}")
+        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
 def start_consuming():
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
-    channel = connection.channel()
-    # Declare both queues
-    channel.queue_declare(queue=RECOMMEND_QUEUE, durable=True)
-    channel.queue_declare(queue=ORDER_UPDATES_QUEUE, durable=True)
+    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
+    parameters = pika.ConnectionParameters(host=RABBITMQ_HOST, credentials=credentials)
+
+    print("hello", credentials, parameters)
     
-    # Set up consumers for both queues
-    channel.basic_qos(prefetch_count=1)
-    channel.basic_consume(queue=RECOMMEND_QUEUE, on_message_callback=callback)
-    channel.basic_consume(queue=ORDER_UPDATES_QUEUE, on_message_callback=callback)
-    
-    print("Notification Service is consuming from recommendations_queue and order_updates_queue...")
-    channel.start_consuming()
+    while True:
+        try:
+            connection = pika.BlockingConnection(parameters)
+            channel = connection.channel()
+            
+            # Declare both queues
+            channel.queue_declare(queue=RECOMMEND_QUEUE, durable=True)
+            channel.queue_declare(queue=ORDER_UPDATES_QUEUE, durable=True)
+            
+            # Set QoS
+            channel.basic_qos(prefetch_count=1)
+            
+            # Start consuming
+            channel.basic_consume(queue=RECOMMEND_QUEUE, on_message_callback=callback)
+            channel.basic_consume(queue=ORDER_UPDATES_QUEUE, on_message_callback=callback)
+            
+            print("Notification Service is consuming from recommendations_queue and order_updates_queue...")
+            channel.start_consuming()
+        except pika.exceptions.AMQPConnectionError as e:
+            logging.error(f"Failed to connect to RabbitMQ: {e}. Retrying in 5 seconds...")
+            time.sleep(5)  # Wait before retrying

@@ -1,16 +1,14 @@
-import uvicorn
-from fastapi import FastAPI, Depends
-from sqlalchemy.orm import Session
 import pika
 import json
+from sqlalchemy.orm import Session
 from apscheduler.schedulers.background import BackgroundScheduler
+from fastapi import FastAPI, Depends
+from pydantic import BaseModel, Field
+import os
 import time
 
 from database import Base, engine, SessionLocal
 from models import Order
-import os
-
-from pydantic import BaseModel, Field
 
 class PlaceOrderRequest(BaseModel):
     userId: int = Field(..., alias="userId")
@@ -20,7 +18,9 @@ class OrderResponse(BaseModel):
     userId: int
     status: str
 
-RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
+RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
+RABBITMQ_USER = os.getenv("RABBITMQ_USER", "appuser")
+RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "securepassword123")
 
 Base.metadata.create_all(bind=engine)
 
@@ -35,15 +35,21 @@ def get_db():
     finally:
         db.close()
 
+# Utility to publish to RabbitMQ with authentication
 def publish_to_queue(message: dict):
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
+    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
+    parameters = pika.ConnectionParameters(
+        host=RABBITMQ_HOST,
+        credentials=credentials
+    )
+    connection = pika.BlockingConnection(parameters)
     channel = connection.channel()
     channel.queue_declare(queue=QUEUE_NAME, durable=True)
     channel.basic_publish(
         exchange='',
         routing_key=QUEUE_NAME,
         body=json.dumps(message),
-        properties=pika.BasicProperties(delivery_mode=2)
+        properties=pika.BasicProperties(delivery_mode=2)  # make message persistent
     )
     connection.close()
 
@@ -68,30 +74,35 @@ def get_orders(user_id: int, db: Session = Depends(get_db)):
 # Periodic job to update order statuses and notify
 def scheduled_order_update():
     db = SessionLocal()
-    orders = db.query(Order).filter(Order.status != "delivered").all()
-    for order in orders:
-        if order.status == "placed":
-            order.status = "shipped"
-        elif order.status == "shipped":
-            order.status = "delivered"
-        db.commit()
+    try:
+        orders = db.query(Order).filter(Order.status != "delivered").all()
+        for order in orders:
+            if order.status == "placed":
+                order.status = "shipped"
+            elif order.status == "shipped":
+                order.status = "delivered"
+            db.commit()
 
-        # Publish event
-        message = {
-            "event": "ORDER_STATUS_UPDATE",
-            "data": {
-                "userId": order.userId,
-                "status": order.status,
-                "orderId": order.id
+            # Publish event
+            message = {
+                "event": "ORDER_STATUS_UPDATE",
+                "data": {
+                    "userId": order.userId,
+                    "status": order.status,
+                    "orderId": order.id
+                }
             }
-        }
-        publish_to_queue(message)
+            publish_to_queue(message)
 
-    db.close()
+    except Exception as e:
+        print(f"Error in scheduled_order_update: {e}")
+    finally:
+        db.close()
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(scheduled_order_update, 'interval', seconds=30)  # Run every 30 seconds
+scheduler.add_job(scheduled_order_update, 'interval', seconds=5)  # Run every 5 seconds for testing
 scheduler.start()
 
 if __name__ == "__main__":
+    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8004)

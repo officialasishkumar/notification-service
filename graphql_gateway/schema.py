@@ -120,9 +120,9 @@ class Query:
 
     @strawberry.field
     def recommendations(self, info: Info) -> List[RecommendationType]:
-        user_id = info.context.get("userId")  # Changed from user_id to userId
+        user_id = info.context.get("userId")  # Changed from user_id to uerId
         if not user_id:
-            return []
+            return ["Im dumb"]
         response = requests.get(f"{RECOMMEND_SERVICE_URL}/recommendations/{user_id}")
         if response.status_code == 200:
             recs = response.json()
