@@ -5,11 +5,11 @@ services:
     image: rabbitmq:3.9-management
     container_name: rabbitmq
     ports:
-      - "5672:5672"      # RabbitMQ server
-      - "15672:15672"    # RabbitMQ Management UI
+      - "5672:5672"      
+      - "15672:15672"    
     environment:
-      RABBITMQ_DEFAULT_USER: appuser      # New Username
-      RABBITMQ_DEFAULT_PASS: securepassword123  # New Password
+      RABBITMQ_DEFAULT_USER: appuser     
+      RABBITMQ_DEFAULT_PASS: securepassword123 
     networks:
       - backend
     healthcheck:
@@ -47,8 +47,8 @@ services:
     environment:
       - DATABASE_URL=sqlite:///./notification_service.db
       - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_USER=appuser            # New Environment Variable
-      - RABBITMQ_PASS=securepassword123  # New Environment Variable
+      - RABBITMQ_USER=appuser            
+      - RABBITMQ_PASS=securepassword123  
       - QUEUE_NAME=recommendations_queue
       - ORDER_UPDATES_QUEUE=order_updates_queue
     depends_on:
@@ -68,9 +68,9 @@ services:
     environment:
       - DATABASE_URL=sqlite:///./recommendation_service.db
       - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_USER=appuser            # New Environment Variable
-      - RABBITMQ_PASS=securepassword123  # New Environment Variable
-      - ORDER_PLACED_QUEUE=order_placed_queue  # New Environment Variable
+      - RABBITMQ_USER=appuser            
+      - RABBITMQ_PASS=securepassword123  
+      - ORDER_PLACED_QUEUE=order_placed_queue  
       - USER_SERVICE_URL=http://user_service:8001
     depends_on:
       - rabbitmq
@@ -90,8 +90,8 @@ services:
     environment:
       - DATABASE_URL=sqlite:///./order_service.db
       - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_USER=appuser            # New Environment Variable
-      - RABBITMQ_PASS=securepassword123  # New Environment Variable
+      - RABBITMQ_USER=appuser            
+      - RABBITMQ_PASS=securepassword123  
       - ORDER_PLACED_QUEUE=order_placed_queue
       - ORDER_UPDATES_QUEUE=order_updates_queue
     depends_on:

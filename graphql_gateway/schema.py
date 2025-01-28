@@ -1,5 +1,3 @@
-# graphql_gateway/schema.py
-
 import os
 import strawberry
 from typing import List, Optional, Dict
@@ -54,7 +52,7 @@ class UserType:
 @strawberry.type
 class AuthPayload:
     token: str
-    userId: int  # Changed from user_id to userId
+    userId: int  
 
 # Input Types
 @strawberry.input
@@ -81,7 +79,7 @@ class UpdatePreferencesInput:
 
 @strawberry.input
 class PlaceOrderInput:
-    userId: int  # Changed from user_id to userId
+    userId: int  
 
 # Queries
 @strawberry.type
@@ -109,7 +107,7 @@ class Query:
 
     @strawberry.field
     def userNotifications(self, info: Info) -> List[NotificationType]:
-        user_id = info.context.get("userId")  # Changed from user_id to userId
+        user_id = info.context.get("userId")  
         if not user_id:
             return []
         response = requests.get(f"{NOTIF_SERVICE_URL}/notifications/unread/{user_id}")
@@ -120,7 +118,7 @@ class Query:
 
     @strawberry.field
     def recommendations(self, info: Info) -> List[RecommendationType]:
-        user_id = info.context.get("userId")  # Changed from user_id to uerId
+        user_id = info.context.get("userId")  
         if not user_id:
             return ["Im dumb"]
         response = requests.get(f"{RECOMMEND_SERVICE_URL}/recommendations/{user_id}")
@@ -131,7 +129,7 @@ class Query:
 
     @strawberry.field
     def orders(self, info: Info) -> List[OrderType]:
-        user_id = info.context.get("userId")  # Changed from user_id to userId
+        user_id = info.context.get("userId")  
         if not user_id:
             return []
         response = requests.get(f"{ORDER_SERVICE_URL}/orders/{user_id}")
@@ -145,7 +143,6 @@ class Query:
 class Mutation:
     @strawberry.mutation
     def register(self, user_input: UserRegisterInput) -> UserType:
-        # Serialize the user_input using jsonable_encoder
         payload = jsonable_encoder(user_input)
         response = requests.post(f"{USER_SERVICE_URL}/register", json=payload)
         if response.status_code == 200:
@@ -169,14 +166,14 @@ class Mutation:
         response = requests.post(f"{USER_SERVICE_URL}/login", json=login_input.__dict__)
         if response.status_code == 200:
             data = response.json()
-            return AuthPayload(token=data["token"], userId=data["userId"])  # Changed from user_id to userId
+            return AuthPayload(token=data["token"], userId=data["userId"])  
         else:
             error = response.json().get("message", "Login failed")
             raise Exception(error)
 
     @strawberry.mutation
     def updatePreferences(self, prefs_input: UpdatePreferencesInput, info: Info) -> UserType:
-        user_id = info.context.get("userId")  # Changed from user_id to userId
+        user_id = info.context.get("userId")  
         if not user_id:
             raise Exception("Not authenticated")
         response = requests.put(
@@ -184,7 +181,6 @@ class Mutation:
             json=jsonable_encoder(prefs_input)
         )
         if response.status_code == 200:
-            # Fetch updated user details
             user_response = requests.get(f"{USER_SERVICE_URL}/user/{user_id}")
             if user_response.status_code == 200:
                 user_data = user_response.json()
@@ -206,7 +202,7 @@ class Mutation:
     def placeOrder(self, order_input: PlaceOrderInput) -> OrderType:
         response = requests.post(
             f"{ORDER_SERVICE_URL}/order",
-            json={"userId": order_input.userId}  # Changed from user_id to userId
+            json={"userId": order_input.userId}  
         )
         if response.status_code == 200:
             return OrderType(**response.json())
@@ -215,7 +211,7 @@ class Mutation:
 
     @strawberry.mutation
     def markNotificationRead(self, notification_id: int, info: Info) -> bool:
-        user_id = info.context.get("userId")  # Changed from user_id to userId
+        user_id = info.context.get("userId")  
         if not user_id:
             raise Exception("Not authenticated")
         response = requests.post(f"{NOTIF_SERVICE_URL}/notifications/mark-read/{notification_id}")

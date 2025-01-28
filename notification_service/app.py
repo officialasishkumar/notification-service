@@ -36,7 +36,7 @@ def mark_notification_read(notification_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Notification marked as read"}
 
-# Example endpoint to manually create a notification (you’d normally do this via queue/event)
+# endpoint to manually create a notification (you’d normally do this via queue/event)
 @app.post("/notifications")
 def create_notification(user_id: int, notif_type: str, content: str, db: Session = Depends(get_db)):
     notif = Notification(userId=user_id, type=notif_type, content=content)

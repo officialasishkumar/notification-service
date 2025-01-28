@@ -10,18 +10,15 @@ import logging
 import requests
 import random
 
-# Configure Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Environment Variables
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
 RABBITMQ_USER = os.getenv("RABBITMQ_USER", "appuser")
 RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "securepassword123")
 ORDER_PLACED_QUEUE = os.getenv("ORDER_PLACED_QUEUE", "order_placed_queue")
 USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user_service:8001")
 
-# Dummy products for recommendation
 DUMMY_PRODUCTS = [
     {"product_id": 101, "name": "Wireless Mouse"},
     {"product_id": 102, "name": "Bluetooth Keyboard"},
@@ -86,13 +83,13 @@ def handle_order_placed(data: dict):
     if not user_id:
         logger.error("userId not found in ORDER_PLACED event")
         return
-    
+
     preferences = fetch_user_preferences(user_id)
     if preferences and preferences.get("recommendations"):
         recommendation = generate_random_recommendation(user_id)
         db: Session = SessionLocal()
         try:
-            # Store recommendation in the database
+
             new_recommendation = Recommendation(
                 userId=recommendation["userId"],
                 productId=recommendation["productId"],
@@ -102,8 +99,7 @@ def handle_order_placed(data: dict):
             db.commit()
             db.refresh(new_recommendation)
             logger.info(f"Stored recommendation {new_recommendation.id} for user {user_id}")
-            
-            # Publish NEW_RECOMMENDATION event
+
             publish_new_recommendation(recommendation)
         except Exception as e:
             logger.error(f"Error storing recommendation: {e}")
@@ -118,12 +114,12 @@ def callback(ch, method, properties, body):
         message = json.loads(body)
         event = message.get("event")
         data = message.get("data", {})
-        
+
         if event == "ORDER_PLACED":
             handle_order_placed(data)
         else:
             logger.warning(f"Unhandled event: {event}")
-        
+
         ch.basic_ack(delivery_tag=method.delivery_tag)
     except Exception as e:
         logger.error(f"Error processing message: {e}")
@@ -144,7 +140,7 @@ def start_consuming():
             channel.start_consuming()
         except pika.exceptions.AMQPConnectionError as e:
             logger.error(f"Failed to connect to RabbitMQ: {e}. Retrying in 5 seconds...")
-            time.sleep(5)  # Wait before retrying
+            time.sleep(5)  
         except Exception as e:
             logger.error(f"Unexpected error: {e}. Retrying in 5 seconds...")
             time.sleep(5)

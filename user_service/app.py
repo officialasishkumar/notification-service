@@ -1,5 +1,3 @@
-# user_service/app.py
-
 import jwt
 import time
 from fastapi import FastAPI, Depends, HTTPException
@@ -14,7 +12,6 @@ from passlib.hash import bcrypt
 
 app = FastAPI(title="User Service")
 
-# Pydantic Schemas
 class UserCreate(BaseModel):
     name: str
     email: str
@@ -32,10 +29,9 @@ class UserType(BaseModel):
     id: int
     name: str
     email: str
-    preferences: str  # JSON string
+    preferences: str  
 
-
-SECRET_KEY = "MY_SECRET_KEY"  # Use environment variables in production
+SECRET_KEY = "MY_SECRET_KEY"  
 ALGORITHM = "HS256"
 
 def get_db():
@@ -45,7 +41,7 @@ def get_db():
     finally:
         db.close()
 
-@app.get("/users", response_model=List[UserType])  # Added endpoint
+@app.get("/users", response_model=List[UserType])  
 def get_all_users(db: Session = Depends(get_db)):
     users = db.query(User).all()
     return [
@@ -58,13 +54,12 @@ def get_all_users(db: Session = Depends(get_db)):
         for user in users
     ]
 
-
 @app.post("/register", response_model=UserType)
 def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == user_data.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
-    
+
     hashed_password = bcrypt.hash(user_data.password)
     user = User(
         name=user_data.name,
@@ -87,13 +82,13 @@ def login_user(credentials: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == credentials.email).first()
     if not user or not bcrypt.verify(credentials.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    
+
     payload = {
-        "userId": user.id,  # Changed from user_id to userId
-        "exp": int(time.time()) + 3600  # 1 hour expiration
+        "userId": user.id,  
+        "exp": int(time.time()) + 3600  
     }
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-    return {"token": token, "userId": user.id}  # Changed from user_id to userId
+    return {"token": token, "userId": user.id}  
 
 @app.get("/user/{user_id}", response_model=UserType)
 def get_user_details(user_id: int, db: Session = Depends(get_db)):

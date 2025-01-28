@@ -1,5 +1,3 @@
-# recommendation_service/app.py
-
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -20,19 +18,16 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 app = FastAPI(title="Recommendation Service")
 
-# Environment Variables
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
 RABBITMQ_USER = os.getenv("RABBITMQ_USER", "appuser")
 RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "securepassword123")
 ORDER_PLACED_QUEUE = os.getenv("ORDER_PLACED_QUEUE", "order_placed_queue")
 USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user_service:8001")
 
-# Configure Logging
 import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Dummy products for recommendation (optional if already in consumer.py)
 DUMMY_PRODUCTS = [
     {"product_id": 201, "name": "Gaming Chair"},
     {"product_id": 202, "name": "Mechanical Keyboard"},
@@ -62,7 +57,7 @@ def generate_and_publish_recommendation(user_id: int):
     recommendation = generate_random_recommendation(user_id)
     db: Session = SessionLocal()
     try:
-        # Store recommendation in the database
+
         new_recommendation = Recommendation(
             userId=recommendation["userId"],
             productId=recommendation["productId"],
@@ -72,8 +67,7 @@ def generate_and_publish_recommendation(user_id: int):
         db.commit()
         db.refresh(new_recommendation)
         logger.info(f"Stored recommendation {new_recommendation.id} for user {user_id}")
-        
-        # Publish NEW_RECOMMENDATION event
+
         publish_new_recommendation(recommendation)
     except Exception as e:
         logger.error(f"Error storing/publishing recommendation: {e}")
@@ -92,14 +86,13 @@ def scheduled_recommendation_task():
 
 @app.on_event("startup")
 def startup_event():
-    # Start the RabbitMQ consumer in a separate thread
+
     consumer_thread = threading.Thread(target=start_consuming, daemon=True)
     consumer_thread.start()
     logger.info("Recommendation Service started and consumer initialized.")
-    
-    # Start the scheduler
+
     scheduler = BackgroundScheduler()
-    scheduler.add_job(scheduled_recommendation_task, 'interval', minutes=10)  # Adjust the interval as needed
+    scheduler.add_job(scheduled_recommendation_task, 'interval', minutes=10)  
     scheduler.start()
     logger.info("Scheduler for scheduled recommendations started.")
 

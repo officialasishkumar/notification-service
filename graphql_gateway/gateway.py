@@ -30,7 +30,6 @@ async def jwt_middleware(request: Request, call_next):
         except jwt.InvalidTokenError:
             raise HTTPException(status_code=401, detail="Invalid token")
     
-    # Attach user_id to request state
     request.state.userId = user_id
 
     response = await call_next(request)
