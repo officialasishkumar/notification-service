@@ -34,6 +34,7 @@ class UserType(BaseModel):
     email: str
     preferences: str  # JSON string
 
+
 SECRET_KEY = "MY_SECRET_KEY"  # Use environment variables in production
 ALGORITHM = "HS256"
 
@@ -43,6 +44,20 @@ def get_db():
         yield db
     finally:
         db.close()
+
+@app.get("/users", response_model=List[UserType])  # Added endpoint
+def get_all_users(db: Session = Depends(get_db)):
+    users = db.query(User).all()
+    return [
+        UserType(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            preferences=user.preferences
+        )
+        for user in users
+    ]
+
 
 @app.post("/register", response_model=UserType)
 def register_user(user_data: UserCreate, db: Session = Depends(get_db)):

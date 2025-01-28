@@ -1,5 +1,3 @@
-# recommendation_service/app.py
-
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -9,10 +7,14 @@ import json
 import os
 import threading
 import time
+import requests
+import random
+from typing import List
 
 from database import Base, engine, SessionLocal
 from models import Recommendation
-from consumer import start_consuming
+from consumer import start_consuming, generate_random_recommendation, fetch_user_preferences, publish_new_recommendation
+from apscheduler.schedulers.background import BackgroundScheduler
 
 app = FastAPI(title="Recommendation Service")
 
@@ -21,79 +23,83 @@ RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
 RABBITMQ_USER = os.getenv("RABBITMQ_USER", "appuser")
 RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "securepassword123")
 QUEUE_NAME = os.getenv("QUEUE_NAME", "recommendations_queue")
+USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user_service:8001")
 
-class RecommendRequest(BaseModel):
-    product_id: int
-    reason: str
+# Dummy products for recommendation
+DUMMY_PRODUCTS = [
+    {"product_id": 201, "name": "Gaming Chair"},
+    {"product_id": 202, "name": "Mechanical Keyboard"},
+    {"product_id": 203, "name": "HD Webcam"},
+    {"product_id": 204, "name": "Ergonomic Desk"},
+    {"product_id": 205, "name": "Wireless Charger"},
+    {"product_id": 206, "name": "Smartwatch"},
+    {"product_id": 207, "name": "Fitness Tracker"},
+    {"product_id": 208, "name": "Portable Projector"},
+    {"product_id": 209, "name": "Action Camera"},
+    {"product_id": 210, "name": "Drone with Camera"},
+]
 
-class RecommendResponse(BaseModel):
-    message: str
-    recommendation_id: int
-
-class RecommendationType(BaseModel):
-    id: int
-    userId: int
-    productId: int
-    reason: str
-
-def get_db():
-    db = SessionLocal()
+def fetch_all_users() -> List[dict]:
     try:
-        yield db
+        response = requests.get(f"{USER_SERVICE_URL}/users")
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logger.error(f"Failed to fetch users: {response.text}")
+            return []
+    except Exception as e:
+        logger.error(f"Error fetching users: {e}")
+        return []
+
+def generate_and_publish_recommendation(user_id: int):
+    recommendation = generate_random_recommendation(user_id)
+    db: Session = SessionLocal()
+    try:
+        # Store recommendation in the database
+        new_recommendation = Recommendation(
+            userId=recommendation["userId"],
+            productId=recommendation["productId"],
+            reason=recommendation["reason"]
+        )
+        db.add(new_recommendation)
+        db.commit()
+        db.refresh(new_recommendation)
+        logger.info(f"Stored recommendation {new_recommendation.id} for user {user_id}")
+        
+        # Publish NEW_RECOMMENDATION event
+        publish_new_recommendation(recommendation)
+    except Exception as e:
+        logger.error(f"Error storing/publishing recommendation: {e}")
+        db.rollback()
     finally:
         db.close()
 
-def publish_to_queue(message: dict):
-    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
-    parameters = pika.ConnectionParameters(host=RABBITMQ_HOST, credentials=credentials)
-    connection = pika.BlockingConnection(parameters)
-    channel = connection.channel()
-    channel.queue_declare(queue=QUEUE_NAME, durable=True)
-    channel.basic_publish(
-        exchange='',
-        routing_key=QUEUE_NAME,
-        body=json.dumps(message),
-        properties=pika.BasicProperties(delivery_mode=2)  # make message persistent
-    )
-    connection.close()
+def scheduled_recommendation_task():
+    logger.info("Running scheduled recommendation task...")
+    users = fetch_all_users()
+    for user in users:
+        preferences = json.loads(user["preferences"])
+        if preferences.get("recommendations"):
+            generate_and_publish_recommendation(user["id"])
+    logger.info("Scheduled recommendation task completed.")
 
-@app.post("/recommend/{user_id}", response_model=RecommendResponse)
-def create_recommendation(user_id: int, recommend_request: RecommendRequest, db: Session = Depends(get_db)):
-    recommendation = Recommendation(
-        userId=user_id,
-        productId=recommend_request.product_id,
-        reason=recommend_request.reason
-    )
-    db.add(recommendation)
-    db.commit()
-    db.refresh(recommendation)
-    
-    # Publish event to RabbitMQ
-    message = {
-        "event": "NEW_RECOMMENDATION",
-        "data": {
-            "userId": user_id,
-            "content": f"Recommended product {recommend_request.product_id} because {recommend_request.reason}"
-        }
-    }
-    publish_to_queue(message)
-    
-    return RecommendResponse(
-        message="Recommendation generated",
-        recommendation_id=recommendation.id
-    )
-
-@app.get("/recommendations/{user_id}", response_model=list[RecommendationType])
-def get_recommendations(user_id: int, db: Session = Depends(get_db)):
-    recommendations = db.query(Recommendation).filter(Recommendation.userId == user_id).all()
-    return recommendations
+# Configure Logging
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 def startup_event():
     # Start the RabbitMQ consumer in a separate thread
     consumer_thread = threading.Thread(target=start_consuming, daemon=True)
     consumer_thread.start()
-    print("Recommendation Service started and consumer initialized.")
+    logger.info("Recommendation Service started and consumer initialized.")
+    
+    # Start the scheduler
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(scheduled_recommendation_task, 'interval', seconds=10)  # Adjust the interval as needed
+    scheduler.start()
+    logger.info("Scheduler for scheduled recommendations started.")
 
 if __name__ == "__main__":
     Base.metadata.create_all(bind=engine)

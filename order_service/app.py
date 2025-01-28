@@ -59,6 +59,18 @@ def place_order(order_request: PlaceOrderRequest, db: Session = Depends(get_db))
     db.add(order)
     db.commit()
     db.refresh(order)
+    
+    # Publish ORDER_PLACED event
+    message = {
+        "event": "ORDER_PLACED",
+        "data": {
+            "orderId": order.id,
+            "userId": order.userId,
+            "status": order.status
+        }
+    }
+    publish_to_queue(message)
+    
     # Return the order details instead of a message
     return OrderResponse(
         id=order.id,

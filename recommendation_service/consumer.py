@@ -6,6 +6,9 @@ from models import Recommendation
 import os
 import time
 import logging
+import requests
+import random
+from typing import Dict, Optional
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
@@ -15,37 +18,111 @@ RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
 RABBITMQ_USER = os.getenv("RABBITMQ_USER", "appuser")
 RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "securepassword123")
 
-QUEUE_NAME = os.getenv("QUEUE_NAME", "recommendations_queue")
+ORDER_UPDATES_QUEUE = os.getenv("ORDER_UPDATES_QUEUE", "order_updates_queue")
+USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user_service:8001")
+
+# Dummy products for recommendation
+DUMMY_PRODUCTS = [
+    {"product_id": 101, "name": "Wireless Mouse"},
+    {"product_id": 102, "name": "Bluetooth Keyboard"},
+    {"product_id": 103, "name": "USB-C Hub"},
+    {"product_id": 104, "name": "Noise Cancelling Headphones"},
+    {"product_id": 105, "name": "4K Monitor"},
+    {"product_id": 106, "name": "External SSD"},
+    {"product_id": 107, "name": "Smartphone Stand"},
+    {"product_id": 108, "name": "Webcam"},
+    {"product_id": 109, "name": "Portable Charger"},
+    {"product_id": 110, "name": "LED Desk Lamp"},
+]
+
+def generate_random_recommendation(user_id: int) -> dict:
+    product = random.choice(DUMMY_PRODUCTS)
+    reason = "Based on your recent activity."
+    recommendation = {
+        "userId": user_id,
+        "productId": product["product_id"],
+        "reason": reason
+    }
+    return recommendation
+
+def fetch_user_preferences(user_id: int) -> Optional[Dict]:
+    try:
+        response = requests.get(f"{USER_SERVICE_URL}/user/{user_id}")
+        if response.status_code == 200:
+            user_data = response.json()
+            preferences = json.loads(user_data["preferences"])
+            return preferences
+        else:
+            logger.error(f"Failed to fetch user {user_id} preferences: {response.text}")
+            return None
+    except Exception as e:
+        logger.error(f"Error fetching user preferences: {e}")
+        return None
+
+def publish_new_recommendation(recommendation: dict):
+    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
+    parameters = pika.ConnectionParameters(host=RABBITMQ_HOST, credentials=credentials)
+    connection = pika.BlockingConnection(parameters)
+    channel = connection.channel()
+    channel.queue_declare(queue="recommendations_queue", durable=True)
+    message = {
+        "event": "NEW_RECOMMENDATION",
+        "data": {
+            "userId": recommendation["userId"],
+            "content": f"Recommended product {recommendation['productId']} because {recommendation['reason']}"
+        }
+    }
+    channel.basic_publish(
+        exchange='',
+        routing_key="recommendations_queue",
+        body=json.dumps(message),
+        properties=pika.BasicProperties(delivery_mode=2)  # make message persistent
+    )
+    connection.close()
+
+def handle_order_placed(data: dict):
+    user_id = data.get("userId")
+    if not user_id:
+        logger.error("userId not found in ORDER_PLACED event")
+        return
+    
+    preferences = fetch_user_preferences(user_id)
+    if preferences and preferences.get("recommendations"):
+        recommendation = generate_random_recommendation(user_id)
+        db: Session = SessionLocal()
+        try:
+            # Store recommendation in the database
+            new_recommendation = Recommendation(
+                userId=recommendation["userId"],
+                productId=recommendation["productId"],
+                reason=recommendation["reason"]
+            )
+            db.add(new_recommendation)
+            db.commit()
+            db.refresh(new_recommendation)
+            logger.info(f"Stored recommendation {new_recommendation.id} for user {user_id}")
+            
+            # Publish NEW_RECOMMENDATION event
+            publish_new_recommendation(recommendation)
+        except Exception as e:
+            logger.error(f"Error storing recommendation: {e}")
+            db.rollback()
+        finally:
+            db.close()
+    else:
+        logger.info(f"User {user_id} has not enabled recommendations.")
 
 def callback(ch, method, properties, body):
     try:
         message = json.loads(body)
-        if message.get("event") == "NEW_RECOMMENDATION":
-            data = message.get("data", {})
-            user_id = data.get("userId")
-            content = data.get("content")
-            # Parse content to extract product_id and reason
-            # Assuming content format: "Recommended product {product_id} because {reason}"
-            try:
-                parts = content.split("Recommended product ")[1].split(" because ")
-                product_id = int(parts[0])
-                reason = parts[1]
-            except (IndexError, ValueError):
-                logger.error("Invalid content format")
-                ch.basic_ack(delivery_tag=method.delivery_tag)
-                return
-
-            db: Session = SessionLocal()
-            recommendation = Recommendation(
-                userId=user_id,
-                productId=product_id,
-                reason=reason
-            )
-            db.add(recommendation)
-            db.commit()
-            db.refresh(recommendation)
-            logger.info(f"Stored recommendation {recommendation.id} for user {user_id}")
-            db.close()
+        event = message.get("event")
+        data = message.get("data", {})
+        
+        if event == "ORDER_PLACED":
+            handle_order_placed(data)
+        else:
+            logger.warning(f"Unhandled event: {event}")
+        
         ch.basic_ack(delivery_tag=method.delivery_tag)
     except Exception as e:
         logger.error(f"Error processing message: {e}")
@@ -54,15 +131,15 @@ def callback(ch, method, properties, body):
 def start_consuming():
     credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
     parameters = pika.ConnectionParameters(host=RABBITMQ_HOST, credentials=credentials)
-    
+
     while True:
         try:
             connection = pika.BlockingConnection(parameters)
             channel = connection.channel()
-            channel.queue_declare(queue=QUEUE_NAME, durable=True)
+            channel.queue_declare(queue=ORDER_UPDATES_QUEUE, durable=True)
             channel.basic_qos(prefetch_count=1)
-            channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback)
-            logger.info(f"Connected to RabbitMQ. Consuming from {QUEUE_NAME}...")
+            channel.basic_consume(queue=ORDER_UPDATES_QUEUE, on_message_callback=callback)
+            logger.info(f"Connected to RabbitMQ. Consuming from {ORDER_UPDATES_QUEUE}...")
             channel.start_consuming()
         except pika.exceptions.AMQPConnectionError as e:
             logger.error(f"Failed to connect to RabbitMQ: {e}. Retrying in 5 seconds...")
