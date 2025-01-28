@@ -14,7 +14,6 @@ RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
 
 Base.metadata.create_all(bind=engine)
 
-RABBITMQ_HOST = "localhost"
 QUEUE_NAME = "order_updates_queue"
 
 app = FastAPI(title="Order Service")

@@ -82,14 +82,13 @@ class UpdatePreferencesInput:
 @strawberry.input
 class PlaceOrderInput:
     userId: int  # Changed from user_id to userId
-    # Add other order details as needed
 
 # Queries
 @strawberry.type
 class Query:
     @strawberry.field
     def me(self, info: Info) -> Optional[UserType]:
-        user_id = info.context.get("userId")  # Changed from user_id to userId
+        user_id = info.context.get("userId")
         if not user_id:
             raise Exception("Not authenticated")
         response = requests.get(f"{USER_SERVICE_URL}/user/{user_id}")
@@ -207,7 +206,7 @@ class Mutation:
     def placeOrder(self, order_input: PlaceOrderInput) -> OrderType:
         response = requests.post(
             f"{ORDER_SERVICE_URL}/order",
-            json={"userId": order_input.userId}  # Changed from user_id to userId
+            json={"user_id": order_input.userId}  # Changed from user_id to userId
         )
         if response.status_code == 200:
             return OrderType(**response.json())

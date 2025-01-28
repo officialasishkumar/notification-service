@@ -38,7 +38,7 @@ async def jwt_middleware(request: Request, call_next):
 
 # Custom context for GraphQL to include user_id
 def get_context(request: Request) -> dict:
-    return {"user_id": request.state.user_id}
+    return {"userId": request.state.userId}
 
 graphql_app = GraphQLRouter(schema, context_getter=get_context)
 
