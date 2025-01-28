@@ -1,3 +1,5 @@
+# notification_service/consumer.py
+
 import pika
 import json
 from sqlalchemy.orm import Session
@@ -7,11 +9,15 @@ import os
 import time
 import logging
 
-RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
+RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
 RABBITMQ_USER = os.getenv("RABBITMQ_USER", "appuser")
 RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "securepassword123")
-RECOMMEND_QUEUE = "recommendations_queue"
-ORDER_UPDATES_QUEUE = "order_updates_queue"
+RECOMMEND_QUEUE = os.getenv("QUEUE_NAME", "recommendations_queue")
+ORDER_UPDATES_QUEUE = os.getenv("ORDER_UPDATES_QUEUE", "order_updates_queue")
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def handle_new_recommendation(data: dict, db: Session):
     user_id = data.get("userId")
@@ -24,7 +30,7 @@ def handle_new_recommendation(data: dict, db: Session):
     db.add(notification)
     db.commit()
     db.refresh(notification)
-    print(f"Created recommendation notification {notification.id} for user {user_id}")
+    logger.info(f"Created recommendation notification {notification.id} for user {user_id}")
 
 def handle_order_status_update(data: dict, db: Session):
     user_id = data.get("userId")
@@ -39,10 +45,7 @@ def handle_order_status_update(data: dict, db: Session):
     db.add(notification)
     db.commit()
     db.refresh(notification)
-    print(f"Created order update notification {notification.id} for user {user_id}")
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+    logger.info(f"Created order update notification {notification.id} for user {user_id}")
 
 def callback(ch, method, properties, body):
     try:
@@ -66,8 +69,6 @@ def start_consuming():
     credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
     parameters = pika.ConnectionParameters(host=RABBITMQ_HOST, credentials=credentials)
 
-    print("hello", credentials, parameters)
-    
     while True:
         try:
             connection = pika.BlockingConnection(parameters)
@@ -84,8 +85,11 @@ def start_consuming():
             channel.basic_consume(queue=RECOMMEND_QUEUE, on_message_callback=callback)
             channel.basic_consume(queue=ORDER_UPDATES_QUEUE, on_message_callback=callback)
             
-            print("Notification Service is consuming from recommendations_queue and order_updates_queue...")
+            logger.info(f"Connected to RabbitMQ. Consuming from {RECOMMEND_QUEUE} and {ORDER_UPDATES_QUEUE}...")
             channel.start_consuming()
         except pika.exceptions.AMQPConnectionError as e:
-            logging.error(f"Failed to connect to RabbitMQ: {e}. Retrying in 5 seconds...")
+            logger.error(f"Failed to connect to RabbitMQ: {e}. Retrying in 5 seconds...")
             time.sleep(5)  # Wait before retrying
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}. Retrying in 5 seconds...")
+            time.sleep(5)

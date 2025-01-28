@@ -18,6 +18,7 @@ services:
       timeout: 5s
       retries: 5
 
+
   user_service:
     build:
       context: .
@@ -69,7 +70,7 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_USER=appuser            # New Environment Variable
       - RABBITMQ_PASS=securepassword123  # New Environment Variable
-      - QUEUE_NAME=recommendations_queue
+      - ORDER_PLACED_QUEUE=order_placed_queue  # New Environment Variable
       - USER_SERVICE_URL=http://user_service:8001
     depends_on:
       - rabbitmq
@@ -91,7 +92,8 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_USER=appuser            # New Environment Variable
       - RABBITMQ_PASS=securepassword123  # New Environment Variable
-      - QUEUE_NAME=order_updates_queue
+      - ORDER_PLACED_QUEUE=order_placed_queue
+      - ORDER_UPDATES_QUEUE=order_updates_queue
     depends_on:
       - rabbitmq
     networks:

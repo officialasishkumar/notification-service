@@ -1,3 +1,5 @@
+# recommendation_service/app.py
+
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -9,7 +11,7 @@ import threading
 import time
 import requests
 import random
-from typing import List
+from typing import List, Optional, Dict
 
 from database import Base, engine, SessionLocal
 from models import Recommendation
@@ -22,10 +24,15 @@ app = FastAPI(title="Recommendation Service")
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
 RABBITMQ_USER = os.getenv("RABBITMQ_USER", "appuser")
 RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "securepassword123")
-QUEUE_NAME = os.getenv("QUEUE_NAME", "recommendations_queue")
+ORDER_PLACED_QUEUE = os.getenv("ORDER_PLACED_QUEUE", "order_placed_queue")
 USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user_service:8001")
 
-# Dummy products for recommendation
+# Configure Logging
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Dummy products for recommendation (optional if already in consumer.py)
 DUMMY_PRODUCTS = [
     {"product_id": 201, "name": "Gaming Chair"},
     {"product_id": 202, "name": "Mechanical Keyboard"},
@@ -83,11 +90,6 @@ def scheduled_recommendation_task():
             generate_and_publish_recommendation(user["id"])
     logger.info("Scheduled recommendation task completed.")
 
-# Configure Logging
-import logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 @app.on_event("startup")
 def startup_event():
     # Start the RabbitMQ consumer in a separate thread
@@ -97,7 +99,7 @@ def startup_event():
     
     # Start the scheduler
     scheduler = BackgroundScheduler()
-    scheduler.add_job(scheduled_recommendation_task, 'interval', seconds=10)  # Adjust the interval as needed
+    scheduler.add_job(scheduled_recommendation_task, 'interval', minutes=10)  # Adjust the interval as needed
     scheduler.start()
     logger.info("Scheduler for scheduled recommendations started.")
 

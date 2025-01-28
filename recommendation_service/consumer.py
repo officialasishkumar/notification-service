@@ -1,3 +1,4 @@
+from typing import Optional, Dict
 import pika
 import json
 from sqlalchemy.orm import Session
@@ -8,17 +9,16 @@ import time
 import logging
 import requests
 import random
-from typing import Dict, Optional
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Environment Variables
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
 RABBITMQ_USER = os.getenv("RABBITMQ_USER", "appuser")
 RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "securepassword123")
-
-ORDER_UPDATES_QUEUE = os.getenv("ORDER_UPDATES_QUEUE", "order_updates_queue")
+ORDER_PLACED_QUEUE = os.getenv("ORDER_PLACED_QUEUE", "order_placed_queue")
 USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user_service:8001")
 
 # Dummy products for recommendation
@@ -37,7 +37,7 @@ DUMMY_PRODUCTS = [
 
 def generate_random_recommendation(user_id: int) -> dict:
     product = random.choice(DUMMY_PRODUCTS)
-    reason = "Based on your recent activity."
+    reason = "Based on your recent order."
     recommendation = {
         "userId": user_id,
         "productId": product["product_id"],
@@ -69,14 +69,15 @@ def publish_new_recommendation(recommendation: dict):
         "event": "NEW_RECOMMENDATION",
         "data": {
             "userId": recommendation["userId"],
-            "content": f"Recommended product {recommendation['productId']} because {recommendation['reason']}"
+            "content": f"Recommended product {recommendation['productName']} (Product ID: {recommendation['productId']}) "
+                       f"for Order #{recommendation['orderId']} because {recommendation['reason']}"
         }
     }
     channel.basic_publish(
         exchange='',
         routing_key="recommendations_queue",
         body=json.dumps(message),
-        properties=pika.BasicProperties(delivery_mode=2)  # make message persistent
+        properties=pika.BasicProperties(delivery_mode=2)
     )
     connection.close()
 
@@ -136,10 +137,10 @@ def start_consuming():
         try:
             connection = pika.BlockingConnection(parameters)
             channel = connection.channel()
-            channel.queue_declare(queue=ORDER_UPDATES_QUEUE, durable=True)
+            channel.queue_declare(queue=ORDER_PLACED_QUEUE, durable=True)
             channel.basic_qos(prefetch_count=1)
-            channel.basic_consume(queue=ORDER_UPDATES_QUEUE, on_message_callback=callback)
-            logger.info(f"Connected to RabbitMQ. Consuming from {ORDER_UPDATES_QUEUE}...")
+            channel.basic_consume(queue=ORDER_PLACED_QUEUE, on_message_callback=callback)
+            logger.info(f"Connected to RabbitMQ. Consuming from {ORDER_PLACED_QUEUE}...")
             channel.start_consuming()
         except pika.exceptions.AMQPConnectionError as e:
             logger.error(f"Failed to connect to RabbitMQ: {e}. Retrying in 5 seconds...")
