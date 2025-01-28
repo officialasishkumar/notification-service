@@ -10,6 +10,16 @@ from database import Base, engine, SessionLocal
 from models import Order
 import os
 
+from pydantic import BaseModel, Field
+
+class PlaceOrderRequest(BaseModel):
+    userId: int = Field(..., alias="userId")
+
+class OrderResponse(BaseModel):
+    id: int
+    userId: int
+    status: str
+
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
 
 Base.metadata.create_all(bind=engine)
@@ -37,13 +47,18 @@ def publish_to_queue(message: dict):
     )
     connection.close()
 
-@app.post("/order")
-def place_order(user_id: int, db: Session = Depends(get_db)):
-    order = Order(userId=user_id, status="placed")
+@app.post("/order", response_model=OrderResponse)
+def place_order(order_request: PlaceOrderRequest, db: Session = Depends(get_db)):
+    order = Order(userId=order_request.userId, status="placed")
     db.add(order)
     db.commit()
     db.refresh(order)
-    return {"message": "Order placed", "order_id": order.id}
+    # Return the order details instead of a message
+    return OrderResponse(
+        id=order.id,
+        userId=order.userId,
+        status=order.status
+    )
 
 @app.get("/orders/{user_id}")
 def get_orders(user_id: int, db: Session = Depends(get_db)):

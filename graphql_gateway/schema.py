@@ -206,7 +206,7 @@ class Mutation:
     def placeOrder(self, order_input: PlaceOrderInput) -> OrderType:
         response = requests.post(
             f"{ORDER_SERVICE_URL}/order",
-            json={"user_id": order_input.userId}  # Changed from user_id to userId
+            json={"userId": order_input.userId}  # Changed from user_id to userId
         )
         if response.status_code == 200:
             return OrderType(**response.json())
