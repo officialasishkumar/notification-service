@@ -286,11 +286,7 @@ query GetUnreadNotifications {
 2. Mark Notification as Read:
 ```graphql
 mutation MarkNotificationRead {
-  markNotificationRead(notificationId: 1) {
-    id
-    read
-    sentAt
-  }
+  markNotificationRead(notificationId: 1)
 }
 ```
 
