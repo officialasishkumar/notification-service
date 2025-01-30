@@ -232,7 +232,7 @@ mutation UpdatePreferences {
 
 #### Order Management
 
-Place 3 Orders:
+Run this 3 times to place Orders:
 
 ```graphql
 mutation PlaceOrder {
@@ -245,25 +245,6 @@ mutation PlaceOrder {
   }
 }
 
-mutation PlaceOrder {
-  placeOrder(orderInput: {
-    userId: 1
-  }) {
-    id
-    userId
-    status
-  }
-}
-
-mutation PlaceOrder {
-  placeOrder(orderInput: {
-    userId: 1
-  }) {
-    id
-    userId
-    status
-  }
-}
 ```
 
 
@@ -287,6 +268,18 @@ query GetUnreadNotifications {
 ```graphql
 mutation MarkNotificationRead {
   markNotificationRead(notificationId: 1)
+}
+```
+
+3. Get Recommendations:
+```graphql
+query GetRecommendations {
+  recommendations {
+    id
+    userId
+    productId
+    reason
+  }
 }
 ```
 

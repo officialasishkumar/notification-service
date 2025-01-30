@@ -84,6 +84,20 @@ def scheduled_recommendation_task():
             generate_and_publish_recommendation(user["id"])
     logger.info("Scheduled recommendation task completed.")
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@app.get("/recommendations/{user_id}")
+def get_user_recommendations(user_id: int, db: Session = Depends(get_db)):
+    recommendations = db.query(Recommendation)\
+                       .filter(Recommendation.userId == user_id)\
+                       .all()
+    return recommendations
+
 @app.on_event("startup")
 def startup_event():
 
@@ -93,7 +107,7 @@ def startup_event():
     logger.info("Recommendation Service started and consumer initialized.")
 
     scheduler = BackgroundScheduler()
-    scheduler.add_job(scheduled_recommendation_task, 'interval', minutes=10)  
+    scheduler.add_job(scheduled_recommendation_task, 'interval', seconds=30)  
     scheduler.start()
     logger.info("Scheduler for scheduled recommendations started.")
 

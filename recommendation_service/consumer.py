@@ -70,7 +70,6 @@ def publish_new_recommendation(recommendation: dict):
         "data": {
             "userId": recommendation["userId"],
             "content": f"Recommended product {product_name} (Product ID: {recommendation['productId']}) "
-                       f"for Order #{recommendation.get('orderId', 'N/A')} because {recommendation['reason']}"
         }
     }
     channel.basic_publish(
