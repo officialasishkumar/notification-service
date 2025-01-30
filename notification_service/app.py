@@ -9,7 +9,7 @@ from models import Notification
 import threading
 from consumer import start_consuming
 
-Base.metadata.create_all(bind=engine)
+
 
 app = FastAPI(title="Notification Service")
 
@@ -50,6 +50,7 @@ def startup_event():
     """
     When FastAPI starts, we spin up a thread to run RabbitMQ consumer logic.
     """
+    Base.metadata.create_all(bind=engine)
     consumer_thread = threading.Thread(target=start_consuming, daemon=True)
     consumer_thread.start()
 

@@ -87,6 +87,7 @@ def scheduled_recommendation_task():
 @app.on_event("startup")
 def startup_event():
 
+    Base.metadata.create_all(bind=engine)
     consumer_thread = threading.Thread(target=start_consuming, daemon=True)
     consumer_thread.start()
     logger.info("Recommendation Service started and consumer initialized.")

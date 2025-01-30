@@ -116,6 +116,10 @@ def scheduled_order_update():
     finally:
         db.close()
 
+@app.on_event("startup")
+async def startup():
+    Base.metadata.create_all(bind=engine)
+
 scheduler = BackgroundScheduler()
 scheduler.add_job(scheduled_order_update, 'interval', seconds=30)
 scheduler.start()

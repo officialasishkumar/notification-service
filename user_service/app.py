@@ -41,6 +41,10 @@ def get_db():
     finally:
         db.close()
 
+@app.on_event("startup")
+async def startup():
+    Base.metadata.create_all(bind=engine)
+
 @app.get("/users", response_model=List[UserType])  
 def get_all_users(db: Session = Depends(get_db)):
     users = db.query(User).all()
