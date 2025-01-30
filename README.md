@@ -290,18 +290,6 @@ mutation MarkNotificationRead {
 }
 ```
 
-3. Get User Recommendations:
-```graphql
-query GetRecommendations {
-  recommendations {
-    id
-    userId
-    productId
-    reason
-  }
-}
-```
-
 ### Testing Workflow
 
 1. **Initial Setup**:
@@ -326,38 +314,6 @@ query GetRecommendations {
    - Wait for scheduled recommendation generation (10 minutes)
    - Check for new personalized recommendations
 
-### Expected Responses
-
-1. Successful Registration:
-```json
-{
-  "data": {
-    "register": {
-      "id": 1,
-      "name": "John Doe",
-      "email": "john.doe@example.com",
-      "preferences": {
-        "promotions": true,
-        "orderUpdates": true,
-        "recommendations": true
-      }
-    }
-  }
-}
-```
-
-2. Successful Order Placement:
-```json
-{
-  "data": {
-    "placeOrder": {
-      "id": 1,
-      "userId": 1,
-      "status": "placed"
-    }
-  }
-}
-```
 
 ## Environment Variables
 
