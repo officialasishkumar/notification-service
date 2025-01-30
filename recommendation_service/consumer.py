@@ -62,12 +62,15 @@ def publish_new_recommendation(recommendation: dict):
     connection = pika.BlockingConnection(parameters)
     channel = connection.channel()
     channel.queue_declare(queue="recommendations_queue", durable=True)
+
+    product_name = next((product["name"] for product in DUMMY_PRODUCTS if product["product_id"] == recommendation["productId"]), "Unknown Product")
+
     message = {
         "event": "NEW_RECOMMENDATION",
         "data": {
             "userId": recommendation["userId"],
-            "content": f"Recommended product {recommendation['productName']} (Product ID: {recommendation['productId']}) "
-                       f"for Order #{recommendation['orderId']} because {recommendation['reason']}"
+            "content": f"Recommended product {product_name} (Product ID: {recommendation['productId']}) "
+                       f"for Order #{recommendation.get('orderId', 'N/A')} because {recommendation['reason']}"
         }
     }
     channel.basic_publish(
