@@ -232,8 +232,29 @@ mutation UpdatePreferences {
 
 #### Order Management
 
-1. Place Order:
+Place 3 Orders:
+
 ```graphql
+mutation PlaceOrder {
+  placeOrder(orderInput: {
+    userId: 1
+  }) {
+    id
+    userId
+    status
+  }
+}
+
+mutation PlaceOrder {
+  placeOrder(orderInput: {
+    userId: 1
+  }) {
+    id
+    userId
+    status
+  }
+}
+
 mutation PlaceOrder {
   placeOrder(orderInput: {
     userId: 1
@@ -245,26 +266,6 @@ mutation PlaceOrder {
 }
 ```
 
-2. Get Order Status:
-```graphql
-query GetOrderStatus {
-  order(orderId: 1) {
-    id
-    userId
-    status
-  }
-}
-```
-
-3. Get User Orders:
-```graphql
-query GetUserOrders {
-  userOrders {
-    id
-    status
-  }
-}
-```
 
 #### Notifications and Recommendations
 
